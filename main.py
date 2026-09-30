@@ -149,11 +149,11 @@ if __name__ == "__main__":
             
             # Horários de Pico (11h-14h e 18h-21h)
             if (11 <= hora <= 14) or (18 <= hora <= 21):
-                espera_minutos = random.randint(40, 75)
+                espera_minutos = random.randint(30, 55)
                 log.info(f"🔥 Horário de pico! Próxima tentativa em {espera_minutos} minutos.")
             # Horários Normais (08h-10h e 15h-17h)
             else:
-                espera_minutos = random.randint(55, 150)
+                espera_minutos = random.randint(30, 55)
                 log.info(f"☕ Horário normal. Próxima tentativa em {espera_minutos} minutos.")
                 
             time.sleep(espera_minutos * 60)
