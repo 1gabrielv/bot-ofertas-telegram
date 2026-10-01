@@ -60,6 +60,7 @@ def processar_fila() -> bool:
         preco_original = float(item["preco_original"]) if item.get("preco_original") else None
         link = item["link_afiliado"]
         cupom = item.get("cupom")
+        imagem_url = item.get("imagem_url") # <-- Variável da imagem puxada do banco
 
         texto_preco = ""
         if preco_original and preco_original > preco_hoje:
@@ -69,24 +70,42 @@ def processar_fila() -> bool:
 
         texto_cupom = f"Use o cupom: {html.escape(cupom)} 📌\n" if cupom else ""
 
+        # Título colocado em negrito (<b>) para dar destaque na legenda
         mensagem = (
-            f"{html.escape(titulo)}\n\n"
+            f"<b>{html.escape(titulo)}</b>\n\n"
             f"{texto_preco}"
             f"{texto_cupom}\n"
             f"Loja no Mercado Livre:\n"
             f"{html.escape(link, quote=True)}" 
         )
 
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={
-                "chat_id": TELEGRAM_CHAT_ID, 
-                "text": mensagem, 
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False 
-            },
-            timeout=15,
-        )
+        # Lógica de fallback: Tenta foto primeiro, se não tiver, manda texto
+        if imagem_url:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto",
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID, 
+                    "photo": imagem_url,
+                    "caption": mensagem,
+                    "parse_mode": "HTML"
+                },
+                timeout=15,
+            )
+        else:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID, 
+                    "text": mensagem, 
+                    "parse_mode": "HTML",
+                    "link_preview_options": {
+                        "is_disabled": False,
+                        "prefer_large_media": True,
+                        "show_above_text": True
+                    }
+                },
+                timeout=15,
+            )
 
         if resp.status_code == 200:
             supabase.table("ofertas_fila").update({"enviado": True}).eq("id", item_id).execute()
@@ -128,7 +147,7 @@ if __name__ == "__main__":
             log.info("🌅 Novo dia! Contador de postagens zerado.")
         
         # REGRA 2: Madrugada (22h00 até 07h59) -> O bot dorme
-        if hora >= 22 or hora < 8:
+        if hora >= 22 or hora < 7:
             log.info("⏰ Fora do horário comercial. Dormindo...")
             time.sleep(3600) # Dorme 1 hora e checa o relógio de novo
             continue
@@ -149,11 +168,11 @@ if __name__ == "__main__":
             
             # Horários de Pico (11h-14h e 18h-21h)
             if (11 <= hora <= 14) or (18 <= hora <= 21):
-                espera_minutos = random.randint(30, 55)
+                espera_minutos = random.randint(45, 75)
                 log.info(f"🔥 Horário de pico! Próxima tentativa em {espera_minutos} minutos.")
             # Horários Normais (08h-10h e 15h-17h)
             else:
-                espera_minutos = random.randint(30, 55)
+                espera_minutos = random.randint(60, 120)
                 log.info(f"☕ Horário normal. Próxima tentativa em {espera_minutos} minutos.")
                 
             time.sleep(espera_minutos * 60)
