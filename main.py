@@ -166,17 +166,13 @@ if __name__ == "__main__":
             posts_hoje += 1
             log.info(f"📊 Progresso do dia: {posts_hoje}/{MAX_POSTS_PER_DAY} postagens realizadas.")
             
-            # Horários de Pico (11h-14h e 18h-21h)
+            # Horários de Pico (11h-14h e 18h-21h) -> Intervalo de 2h a 2h30
             if (11 <= hora <= 14) or (18 <= hora <= 21):
-                espera_minutos = random.randint(45, 75)
+                espera_minutos = random.randint(120, 150)
                 log.info(f"🔥 Horário de pico! Próxima tentativa em {espera_minutos} minutos.")
-            # Horários Normais (08h-10h e 15h-17h)
+            # Horários Normais (08h-10h e 15h-17h) -> Intervalo de 2h30 a 3h30
             else:
-                espera_minutos = random.randint(60, 120)
+                espera_minutos = random.randint(150, 210)
                 log.info(f"☕ Horário normal. Próxima tentativa em {espera_minutos} minutos.")
                 
             time.sleep(espera_minutos * 60)
-            
-        else:
-            # Se não postou nada (banco vazio), espera 10 minutos e checa o banco de novo
-            time.sleep(600)
