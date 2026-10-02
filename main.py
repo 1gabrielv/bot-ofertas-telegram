@@ -58,28 +58,39 @@ def processar_fila() -> bool:
         titulo = item["titulo"]
         preco_hoje = float(item["preco_hoje"])
         preco_original = float(item["preco_original"]) if item.get("preco_original") else None
+        preco_cupom = float(item["preco_cupom"]) if item.get("preco_cupom") else None
         link = item["link_afiliado"]
         cupom = item.get("cupom")
-        imagem_url = item.get("imagem_url") # <-- Variável da imagem puxada do banco
+        imagem_url = item.get("imagem_url")
 
-        texto_preco = ""
-        if preco_original and preco_original > preco_hoje:
-            texto_preco = f"De R$ {brl(preco_original)} Por R$ {brl(preco_hoje)} 💵\n"
+        # SE PREENCHEU O PREÇO ORIGINAL: Usa o layout de promoção normal
+        # (Não depende mais de matemática, basta o campo não estar vazio)
+        if preco_original:
+            cabecalho = f"<b>{html.escape(titulo)}</b>\n\n"
+            texto_base = f"De: R$ {brl(preco_original)} | Por: R$ {brl(preco_hoje)} 💵\n"
+            
+        # SE NÃO PREENCHEU O PREÇO ORIGINAL: Usa o layout "Achado Pokémon"
         else:
-            texto_preco = f"Por R$ {brl(preco_hoje)} 💵\n"
+            cabecalho = f"🔥 <b>ACHADO POKÉMON</b>\n\n📦 <b>{html.escape(titulo)}</b>\n\n"
+            texto_base = f"💵 Apenas: R$ {brl(preco_hoje)}\n"
 
-        texto_cupom = f"Use o cupom: {html.escape(cupom)} 📌\n" if cupom else ""
+        # LÓGICA DO CUPOM NA MESMA LINHA
+        texto_cupom = ""
+        if cupom:
+            if preco_cupom:
+                texto_cupom = f"🎟️ Com cupom fica: R$ {brl(preco_cupom)} (Use: {html.escape(cupom)})\n"
+            else:
+                texto_cupom = f"🎟️ Use o cupom: {html.escape(cupom)}\n"
 
-        # Título colocado em negrito (<b>) para dar destaque na legenda
         mensagem = (
-            f"<b>{html.escape(titulo)}</b>\n\n"
-            f"{texto_preco}"
+            f"{cabecalho}"
+            f"{texto_base}"
             f"{texto_cupom}\n"
-            f"Loja no Mercado Livre:\n"
+            f"🔗 Compre aqui:\n"
             f"{html.escape(link, quote=True)}" 
         )
 
-        # Lógica de fallback: Tenta foto primeiro, se não tiver, manda texto
+        # Lógica de fallback da imagem
         if imagem_url:
             resp = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto",
@@ -125,13 +136,10 @@ def processar_fila() -> bool:
 if __name__ == "__main__":
     log.info("🤖 Bot Iniciado! Carregando regras de horários e limites...")
     
-    # Puxa o limite do .env (se não achar, usa 8 como padrão)
-    MAX_POSTS_PER_DAY = int(os.environ.get("MAX_POSTS_PER_DAY", "8"))
+    MAX_POSTS_PER_DAY = int(os.environ.get("MAX_POSTS_PER_DAY", "6"))
     
-    # Define o fuso horário de Brasília (UTC-3)
     fuso_br = timezone(timedelta(hours=-3))
     
-    # Contadores diários
     posts_hoje = 0
     dia_atual = datetime.now(fuso_br).date()
     
@@ -140,39 +148,35 @@ if __name__ == "__main__":
         hora = agora.hour
         hoje = agora.date()
         
-        # REGRA 1: Virada do dia (Reseta o contador de postagens)
         if hoje != dia_atual:
             dia_atual = hoje
             posts_hoje = 0
             log.info("🌅 Novo dia! Contador de postagens zerado.")
         
-        # REGRA 2: Madrugada (22h00 até 07h59) -> O bot dorme
         if hora >= 22 or hora < 7:
             log.info("⏰ Fora do horário comercial. Dormindo...")
-            time.sleep(3600) # Dorme 1 hora e checa o relógio de novo
+            time.sleep(300) 
             continue
             
-        # REGRA 3: Limite de postagens diárias
         if posts_hoje >= MAX_POSTS_PER_DAY:
             log.info(f"🛑 Limite de {MAX_POSTS_PER_DAY} postagens atingido por hoje. Pausando até amanhã...")
-            time.sleep(3600) # Checa de hora em hora até virar o dia
+            time.sleep(3600) 
             continue
             
-        # REGRA 4: Horário comercial e dentro do limite -> Tenta postar
         postou_algo = processar_fila()
         
-        # REGRA 5: Calculador de ritmo humano
         if postou_algo:
             posts_hoje += 1
             log.info(f"📊 Progresso do dia: {posts_hoje}/{MAX_POSTS_PER_DAY} postagens realizadas.")
             
-            # Horários de Pico (11h-14h e 18h-21h) -> Intervalo de 2h a 2h30
             if (11 <= hora <= 14) or (18 <= hora <= 21):
                 espera_minutos = random.randint(120, 150)
                 log.info(f"🔥 Horário de pico! Próxima tentativa em {espera_minutos} minutos.")
-            # Horários Normais (08h-10h e 15h-17h) -> Intervalo de 2h30 a 3h30
             else:
                 espera_minutos = random.randint(150, 210)
                 log.info(f"☕ Horário normal. Próxima tentativa em {espera_minutos} minutos.")
                 
             time.sleep(espera_minutos * 60)
+            
+        else:
+            time.sleep(600)
